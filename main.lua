@@ -1,4 +1,6 @@
 -- [[ DEAD RAIL MASTER ULTIMATE V.FINAL ]]
+-- Project Memory: Auto Join, Warp Hitbox, ESP X-Ray, Aimbot Snap, Gold X-Ray
+
 local player = game.Players.LocalPlayer
 local pGui = player:WaitForChild("PlayerGui")
 local ts = game:GetService("TweenService")
@@ -6,12 +8,14 @@ local runS = game:GetService("RunService")
 local cam = workspace.CurrentCamera
 local rs = game:GetService("ReplicatedStorage")
 
+-- [[ ล้างของเก่าเพื่อป้องกัน Script ซ้อน ]]
 if pGui:FindFirstChild("DeadRail_Master_Final") then pGui.DeadRail_Master_Final:Destroy() end
 
 local sg = Instance.new("ScreenGui", pGui)
 sg.Name = "DeadRail_Master_Final"
 sg.ResetOnSpawn = false
 
+-- === 1. ตัวแปรสถานะ (Project Memory) ===
 _G.AutoJoin = false
 _G.SelectedMode = "ปกติ"
 _G.AimbotEnabled = false
@@ -25,33 +29,53 @@ local modeMap = {
     ["คริสต์มาส"] = "ChristmasEvent2025"
 }
 
+-- === 2. SYSTEM: AUTO JOIN & WARP (รัวๆ ตามสั่ง) ===
 task.spawn(function()
     while task.wait(0.5) do
         if _G.AutoJoin then
             pcall(function()
                 local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                -- Warp ไปที่บล็อก Hitbox
                 for _, v in pairs(workspace:GetDescendants()) do
                     if v:IsA("BasePart") and v.Name == "Hitbox" then
                         if hrp then hrp.CFrame = v.CFrame end
                         break
                     end
                 end
+                -- ส่ง Remote ตามโหมดที่เลือก
                 local remote = rs:WaitForChild("Shared"):WaitForChild("Network"):WaitForChild("RemoteEvent"):WaitForChild("CreateParty")
-                remote:FireServer({{isPrivate = true, maxMembers = 1, trainId = "default", gameMode = modeMap[_G.SelectedMode] or "Normal"}})
+                remote:FireServer({{
+                    isPrivate = true, 
+                    maxMembers = 1, 
+                    trainId = "default", 
+                    gameMode = modeMap[_G.SelectedMode] or "Normal"
+                }})
             end)
         end
     end
 end)
 
+-- === 3. SYSTEM: PLAYER ESP (X-RAY) ===
 runS.RenderStepped:Connect(function()
     for _, v in pairs(game.Players:GetPlayers()) do
         if v ~= player and v.Character then
-            local hl = v.Character:FindFirstChild("PlayerHL") or Instance.new("Highlight", v.Character)
-            hl.Name = "PlayerHL"; hl.FillColor = Color3.fromRGB(255, 0, 0); hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop; hl.Enabled = _G.PlayerESP
+            local hl = v.Character:FindFirstChild("PlayerHL")
+            if _G.PlayerESP then
+                if not hl then
+                    hl = Instance.new("Highlight", v.Character)
+                    hl.Name = "PlayerHL"
+                    hl.FillColor = Color3.fromRGB(255, 0, 0)
+                    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                end
+                hl.Enabled = true
+            else
+                if hl then hl.Enabled = false end
+            end
         end
     end
 end)
 
+-- === 4. UI CONSTRUCTION (Draggable & สมมาตร) ===
 local function makeDraggable(obj)
     local dragging, dragStart, startPos
     obj.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true; dragStart = input.Position; startPos = obj.Position end end)
@@ -68,6 +92,7 @@ frame.Size = UDim2.new(0, 0, 0, 0); frame.Position = UDim2.new(0.5, 0, 0.35, 0);
 local layout = Instance.new("UIListLayout", frame); layout.FillDirection = "Horizontal"; layout.Padding = UDim.new(0, 10); layout.HorizontalAlignment = "Center"; layout.VerticalAlignment = "Center"
 makeDraggable(frame)
 
+-- แถบเลือกโหมด
 local mCont = Instance.new("Frame", frame); mCont.Size = UDim2.new(0, 130, 0, 100); mCont.BackgroundTransparency = 1
 Instance.new("UIListLayout", mCont).Padding = UDim.new(0, 2)
 local modeBtns = {}
@@ -99,5 +124,24 @@ logo.Activated:Connect(function()
     local isOp = frame.Size.X.Offset == 0
     ts:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Quart), {Size = isOp and UDim2.new(0, 540, 0, 120) or UDim2.new(0, 0, 0, 0)}):Play()
     frame.Visible = true
+end)
+
+-- === 5. SYSTEM: AIMBOT SNAP ===
+runS.RenderStepped:Connect(function()
+    if _G.AimbotEnabled then
+        local target = nil; local shortest = 500
+        for _, v in pairs(workspace:GetChildren()) do
+            if v:IsA("Model") and v ~= player.Character and v:FindFirstChild("Head") and v:FindFirstChildOfClass("Humanoid") then
+                if v:FindFirstChildOfClass("Humanoid").Health > 0 then
+                    local _, onS = cam:WorldToViewportPoint(v.Head.Position)
+                    if onS then
+                        local dist = (player.Character.HumanoidRootPart.Position - v.Head.Position).Magnitude
+                        if dist < shortest then target = v.Head; shortest = dist end
+                    end
+                end
+            end
+        end
+        if target then cam.CFrame = CFrame.lookAt(cam.CFrame.Position, target.Position) end
+    end
 end)
 
